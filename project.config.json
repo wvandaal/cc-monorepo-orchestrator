@@ -1,0 +1,10 @@
+{
+  "codebase": {
+    "remote": "git@github.com:wvandaal/cc-monorepo.git",
+    "defaultBranch": "main"
+  },
+  "worktrees": {
+    "root": "worktrees",
+    "branchSanitizer": "replace-slash"
+  }
+}

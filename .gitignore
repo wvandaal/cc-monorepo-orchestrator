@@ -1,0 +1,17 @@
+# Two-repo architecture: meta-repo ignores codebase
+.bare/
+worktrees/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Node (for orchestration)
+node_modules/
+dist/
+*.tsbuildinfo
