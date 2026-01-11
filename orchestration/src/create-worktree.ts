@@ -83,6 +83,10 @@ function fetchLatest(): void {
   }
 }
 
+/**
+ * Check if a branch exists locally or on remote.
+ * Note: Assumes remote is named 'origin' (standard for bare clones).
+ */
 function branchExists(branch: string, type: "local" | "remote"): boolean {
   try {
     const ref = type === "local" ? `refs/heads/${branch}` : `refs/remotes/origin/${branch}`;

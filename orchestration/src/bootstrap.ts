@@ -134,9 +134,16 @@ function enableCorepack(): void {
   }
 }
 
-function installDependencies(config: ProjectConfig): void {
+function installDependencies(config: ProjectConfig, forceInstall: boolean): void {
   const worktreesRoot = join(META_REPO_ROOT, config.worktrees.root);
   const mainWorktreePath = join(worktreesRoot, "main");
+  const nodeModulesPath = join(mainWorktreePath, "node_modules");
+
+  // Skip install if node_modules exists and --force-install not passed
+  if (existsSync(nodeModulesPath) && !forceInstall) {
+    console.log("Dependencies already installed (node_modules exists). Use --force-install to reinstall.");
+    return;
+  }
 
   console.log("Installing dependencies in main worktree...");
   try {
@@ -150,6 +157,9 @@ function installDependencies(config: ProjectConfig): void {
 }
 
 function main(): void {
+  const args = process.argv.slice(2);
+  const forceInstall = args.includes("--force-install");
+
   console.log("=== Bootstrap: Setting up monorepo ===\n");
 
   // Load and validate config
@@ -171,8 +181,8 @@ function main(): void {
   // Enable corepack
   enableCorepack();
 
-  // Install dependencies
-  installDependencies(config);
+  // Install dependencies (skipped if node_modules exists unless --force-install)
+  installDependencies(config, forceInstall);
 
   console.log("\n=== Bootstrap complete! ===");
   console.log(`\nYou can now work in: ${join(META_REPO_ROOT, config.worktrees.root, "main")}`);

@@ -1,0 +1,10 @@
+{
+  "name": "cc-monorepo-meta",
+  "private": true,
+  "type": "module",
+  "description": "Meta-repo for monorepo orchestration",
+  "scripts": {
+    "bootstrap": "cd orchestration && pnpm run bootstrap",
+    "wt": "cd orchestration && pnpm run create-worktree --"
+  }
+}

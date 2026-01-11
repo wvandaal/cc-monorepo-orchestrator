@@ -42,16 +42,17 @@ cc-monorepo/
 
 3. Start working in the main worktree:
    ```bash
-   cd ../worktrees/main
+   cd worktrees/main
    ```
+
+Bootstrap is idempotent—it skips `pnpm install` if `node_modules` exists. Use `--force-install` to reinstall.
 
 ### Creating a New Worktree
 
 Each feature branch should have its own worktree to avoid context bleed:
 
 ```bash
-cd orchestration
-pnpm run create-worktree feature/my-feature
+pnpm wt feature/my-feature
 ```
 
 This will:
