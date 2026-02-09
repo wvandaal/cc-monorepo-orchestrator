@@ -69,8 +69,9 @@ This moves everything into `repos/<name>/`, rewrites git pointers, updates confi
 ### Bootstrap
 
 ```bash
-pnpm bootstrap              # Bootstrap all repos
-pnpm bootstrap cc-monorepo  # Bootstrap a specific repo
+pnpm bootstrap                        # Bootstrap all repos
+pnpm bootstrap cc-monorepo            # Bootstrap a specific repo
+pnpm bootstrap --force-install        # Reinstall dependencies even if node_modules exists
 ```
 
 ### Create Worktree
@@ -94,7 +95,9 @@ pnpm repo add other-repo git@github.com:org/other-repo.git --default-branch deve
 
 # Create a new repo from a template
 pnpm repo create my-app --template cc-monorepo --remote git@github.com:org/my-app.git
-pnpm repo create my-app --template cc-monorepo   # auto-creates GitHub repo via gh
+pnpm repo create my-app --template cc-monorepo              # auto-creates GitHub repo via gh
+pnpm repo create my-app --template cc-monorepo --public      # create as public GitHub repo
+pnpm repo create my-app --template cc-monorepo --default-branch develop --package-manager npm
 
 # Rename a repo
 pnpm repo rename old-name new-name
@@ -104,7 +107,8 @@ pnpm repo list
 
 # Remove a repo from config
 pnpm repo remove other-repo
-pnpm repo remove other-repo --clean   # also delete files
+pnpm repo remove other-repo --clean         # also delete files
+pnpm repo remove other-repo --clean --force  # skip confirmation prompt
 ```
 
 ### Removing a Worktree
@@ -138,6 +142,8 @@ git --git-dir repos/cc-monorepo/.bare worktree remove --force repos/cc-monorepo/
 ```
 
 The map key is the directory name under `repos/`. Each repo inherits from `defaults` and can override `defaultBranch` and `packageManager`.
+
+Supported values for `packageManager`: `pnpm`, `npm`, `yarn`, `none` (skips dependency installation).
 
 The legacy single-repo format (`codebase` + `worktrees` keys) is still supported and auto-converted in memory. Run `pnpm migrate` to persist the new format.
 

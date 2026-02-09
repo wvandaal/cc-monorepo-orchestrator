@@ -4,7 +4,9 @@
   "type": "module",
   "description": "Meta-repo for monorepo orchestration",
   "scripts": {
-    "bootstrap": "cd orchestration && pnpm run bootstrap",
-    "wt": "cd orchestration && pnpm run create-worktree --"
+    "bootstrap": "cd orchestration && pnpm run bootstrap --",
+    "wt": "cd orchestration && pnpm run create-worktree --",
+    "repo": "cd orchestration && pnpm run repo --",
+    "migrate": "cd orchestration && pnpm run migrate"
   }
 }

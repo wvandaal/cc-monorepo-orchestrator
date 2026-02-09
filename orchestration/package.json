@@ -6,7 +6,9 @@
   "scripts": {
     "build": "tsc",
     "bootstrap": "node dist/bootstrap.js",
-    "create-worktree": "node dist/create-worktree.js"
+    "create-worktree": "node dist/create-worktree.js",
+    "repo": "node dist/repo.js",
+    "migrate": "node dist/migrate.js"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

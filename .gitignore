@@ -1,6 +1,5 @@
-# Two-repo architecture: meta-repo ignores codebase
-.bare/
-worktrees/
+# Multi-repo workspace
+repos/
 
 # IDE
 .idea/
