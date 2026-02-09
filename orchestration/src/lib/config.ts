@@ -38,55 +38,6 @@ export interface ResolvedRepoConfig {
   worktreesRoot: string;
 }
 
-// ── Legacy format (for migration) ──────────────────────────────────────────
-
-export interface LegacyConfig {
-  codebase: {
-    remote: string;
-    defaultBranch: string;
-  };
-  worktrees: {
-    root: string;
-    branchSanitizer?: string;
-  };
-}
-
-function isLegacyConfig(raw: unknown): raw is LegacyConfig {
-  return (
-    typeof raw === "object" &&
-    raw !== null &&
-    "codebase" in raw &&
-    !("repos" in raw)
-  );
-}
-
-function convertLegacy(legacy: LegacyConfig): ProjectConfig {
-  // Derive repo name from remote URL
-  const name = repoNameFromRemote(legacy.codebase.remote);
-  return {
-    defaults: {
-      defaultBranch: legacy.codebase.defaultBranch || "main",
-      packageManager: "pnpm",
-      branchSanitizer: legacy.worktrees?.branchSanitizer || "replace-slash",
-    },
-    repos: {
-      [name]: {
-        remote: legacy.codebase.remote,
-      },
-    },
-  };
-}
-
-// ── Helpers ─────────────────────────────────────────────────────────────────
-
-export function repoNameFromRemote(remote: string): string {
-  // Extract repo name from URLs like:
-  //   git@github.com:org/repo.git  →  repo
-  //   https://github.com/org/repo.git  →  repo
-  const match = remote.match(/\/([^/]+?)(?:\.git)?$/);
-  return match ? match[1] : "repo";
-}
-
 // ── Config loading / saving ────────────────────────────────────────────────
 
 export function loadConfig(): ProjectConfig {
@@ -98,15 +49,7 @@ export function loadConfig(): ProjectConfig {
 
   try {
     const content = readFileSync(CONFIG_PATH, "utf-8");
-    const raw = JSON.parse(content);
-
-    // Legacy format detection and in-memory conversion
-    if (isLegacyConfig(raw)) {
-      console.log("Detected legacy config format, converting in-memory...");
-      return convertLegacy(raw);
-    }
-
-    const config = raw as ProjectConfig;
+    const config = JSON.parse(content) as ProjectConfig;
 
     // Validate
     if (!config.repos || Object.keys(config.repos).length === 0) {

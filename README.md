@@ -14,8 +14,7 @@ cc-monorepo/
 │       ├── lib/                    # Shared modules (config, git, deps)
 │       ├── bootstrap.ts            # Bootstrap one or all repos
 │       ├── create-worktree.ts      # Create worktree for a repo + branch
-│       ├── repo.ts                 # Add/create/remove/rename/list repos
-│       └── migrate.ts              # One-time migration from old layout
+│       └── repo.ts                 # Add/create/remove/rename/list repos
 ├── repos/                          # All managed repositories
 │   ├── cc-monorepo/
 │   │   ├── .bare/                  # Bare git repo
@@ -53,16 +52,6 @@ Each managed repository gets its own `repos/<name>/` directory containing a bare
    ```
 
 Bootstrap is idempotent — it skips `pnpm install` if `node_modules` exists. Use `--force-install` to reinstall.
-
-### Migrating from Single-Repo Layout
-
-If you have an existing setup with `.bare/` and `worktrees/` at the project root:
-
-```bash
-pnpm migrate
-```
-
-This moves everything into `repos/<name>/`, rewrites git pointers, updates config and `.gitignore`.
 
 ## CLI Commands
 
@@ -144,8 +133,6 @@ git --git-dir repos/cc-monorepo/.bare worktree remove --force repos/cc-monorepo/
 The map key is the directory name under `repos/`. Each repo inherits from `defaults` and can override `defaultBranch` and `packageManager`.
 
 Supported values for `packageManager`: `pnpm`, `npm`, `yarn`, `none` (skips dependency installation).
-
-The legacy single-repo format (`codebase` + `worktrees` keys) is still supported and auto-converted in memory. Run `pnpm migrate` to persist the new format.
 
 ## Tech Stack
 
