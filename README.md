@@ -1,163 +1,145 @@
 # CC Monorepo
 
-A TypeScript monorepo template using pnpm workspaces, designed for Claude Code and git worktrees.
+A multi-repo workspace manager using git worktrees, designed for Claude Code.
 
 ## Architecture
 
-This repository uses a **two-repo architecture**:
+This repository uses a **meta-repo + multi-repo** architecture:
 
 ```
 cc-monorepo/
-├── .git/           # META-REPO: Tracks orchestration layer
-├── .bare/          # CODEBASE REPO: Tracks actual code (bare repository)
-├── worktrees/      # Worktree checkouts from .bare/
-│   └── main/       # Main worktree (default branch)
-└── orchestration/  # Meta-level tooling
+├── .git/                           # Meta-repo: tracks orchestration layer
+├── orchestration/                  # Tooling (TypeScript)
+│   └── src/
+│       ├── lib/                    # Shared modules (config, git, deps)
+│       ├── bootstrap.ts            # Bootstrap one or all repos
+│       ├── create-worktree.ts      # Create worktree for a repo + branch
+│       ├── repo.ts                 # Add/create/remove/rename/list repos
+│       └── migrate.ts              # One-time migration from old layout
+├── repos/                          # All managed repositories
+│   ├── cc-monorepo/
+│   │   ├── .bare/                  # Bare git repo
+│   │   └── worktrees/
+│   │       └── main/               # Default branch worktree
+│   └── another-repo/
+│       ├── .bare/
+│       └── worktrees/
+│           └── main/
+├── project.config.json             # Multi-repo configuration
+└── package.json                    # Root convenience scripts
 ```
 
-| Component | Git Location | Purpose |
-|-----------|--------------|---------|
-| Meta-repo | `.git/` | Orchestration, tooling, configuration |
-| Codebase | `.bare/` | Actual code, packages, builds |
-
-**The Rule**: "Does this operate ON worktrees or WITHIN a worktree?"
-- **ON worktrees** → Goes in orchestration/ (meta-repo)
-- **WITHIN a worktree** → Goes in worktrees/main/ (codebase)
+Each managed repository gets its own `repos/<name>/` directory containing a bare clone (`.bare/`) and worktree checkouts (`worktrees/`).
 
 ## Getting Started
 
-### Initial Setup (after cloning meta-repo)
+### Initial Setup
 
-1. Install orchestration dependencies:
+1. Install orchestration dependencies and build:
    ```bash
    cd orchestration
    pnpm install
    pnpm build
    ```
 
-2. Run bootstrap to clone codebase and set up main worktree:
+2. Bootstrap all configured repos:
    ```bash
    pnpm bootstrap
    ```
 
-3. Start working in the main worktree:
+3. Start working in a worktree:
    ```bash
-   cd worktrees/main
+   cd repos/cc-monorepo/worktrees/main
    ```
 
-Bootstrap is idempotent—it skips `pnpm install` if `node_modules` exists. Use `--force-install` to reinstall.
+Bootstrap is idempotent — it skips `pnpm install` if `node_modules` exists. Use `--force-install` to reinstall.
 
-### Creating a New Worktree
+### Migrating from Single-Repo Layout
 
-Each feature branch should have its own worktree to avoid context bleed:
+If you have an existing setup with `.bare/` and `worktrees/` at the project root:
 
 ```bash
-pnpm wt feature/my-feature
+pnpm migrate
+```
+
+This moves everything into `repos/<name>/`, rewrites git pointers, updates config and `.gitignore`.
+
+## CLI Commands
+
+### Bootstrap
+
+```bash
+pnpm bootstrap              # Bootstrap all repos
+pnpm bootstrap cc-monorepo  # Bootstrap a specific repo
+```
+
+### Create Worktree
+
+```bash
+pnpm wt cc-monorepo feature/my-feature
 ```
 
 This will:
 1. Fetch latest from remote
 2. Create the branch (if it doesn't exist)
-3. Create worktree at `worktrees/feature__my-feature/`
+3. Create worktree at `repos/cc-monorepo/worktrees/feature__my-feature/`
 4. Install dependencies
+
+### Manage Repos
+
+```bash
+# Add an existing repo
+pnpm repo add other-repo git@github.com:org/other-repo.git
+pnpm repo add other-repo git@github.com:org/other-repo.git --default-branch develop --package-manager npm
+
+# Create a new repo from a template
+pnpm repo create my-app --template cc-monorepo --remote git@github.com:org/my-app.git
+pnpm repo create my-app --template cc-monorepo   # auto-creates GitHub repo via gh
+
+# Rename a repo
+pnpm repo rename old-name new-name
+
+# List all repos and their status
+pnpm repo list
+
+# Remove a repo from config
+pnpm repo remove other-repo
+pnpm repo remove other-repo --clean   # also delete files
+```
 
 ### Removing a Worktree
 
 ```bash
-git --git-dir .bare worktree remove --force worktrees/feature__my-feature
-```
-
-## Package Management
-
-Packages are organized by domain: `packages/{domain}/{package}/`
-
-### Creating a New Package
-
-From within a worktree:
-
-```bash
-cd worktrees/main
-pnpm run create-package utils datetime
-```
-
-This creates `@utils/datetime` at `packages/utils/datetime/`.
-
-### Adding Dependencies
-
-```bash
-# Add external dependency
-pnpm add lodash --filter @utils/datetime
-
-# Add workspace dependency (another package in the monorepo)
-pnpm add @utils/datetime --filter @services/api --workspace
-```
-
-### Syncing TypeScript References
-
-After adding workspace dependencies, sync the TypeScript project references:
-
-```bash
-pnpm run sync-refs
-```
-
-## Development Workflow
-
-### Build
-
-```bash
-pnpm build              # Build all packages
-pnpm build --filter @utils/datetime  # Build specific package
-```
-
-### Lint & Format
-
-```bash
-pnpm lint               # Check for issues
-pnpm lint:fix           # Fix issues
-pnpm format             # Format code
-```
-
-### Clean
-
-```bash
-pnpm clean              # Remove build artifacts
+git --git-dir repos/cc-monorepo/.bare worktree remove --force repos/cc-monorepo/worktrees/feature__my-feature
 ```
 
 ## Configuration
 
 ### project.config.json
 
-Located at the meta-repo root, contains:
-
 ```json
 {
-  "codebase": {
-    "remote": "git@github.com:your-org/your-codebase.git",
-    "defaultBranch": "main"
-  },
-  "worktrees": {
-    "root": "worktrees",
+  "defaults": {
+    "defaultBranch": "main",
+    "packageManager": "pnpm",
     "branchSanitizer": "replace-slash"
+  },
+  "repos": {
+    "cc-monorepo": {
+      "remote": "git@github.com:wvandaal/cc-monorepo.git"
+    },
+    "other-repo": {
+      "remote": "git@github.com:org/other-repo.git",
+      "defaultBranch": "develop",
+      "packageManager": "npm"
+    }
   }
 }
 ```
 
-Update `codebase.remote` to point to your actual codebase repository.
+The map key is the directory name under `repos/`. Each repo inherits from `defaults` and can override `defaultBranch` and `packageManager`.
 
-## CI/CD Notes
-
-| Environment | Command | Purpose |
-|-------------|---------|---------|
-| Local | `pnpm install` | Updates lockfile if needed |
-| CI | `pnpm install --frozen-lockfile` | Fails if lockfile out of sync |
-
-### Lockfile Conflicts
-
-When merging branches with conflicting `pnpm-lock.yaml`:
-1. Resolve conflicts in `package.json` files first
-2. Delete the conflicted `pnpm-lock.yaml`
-3. Run `pnpm install` to regenerate
-4. Commit the new lockfile
+The legacy single-repo format (`codebase` + `worktrees` keys) is still supported and auto-converted in memory. Run `pnpm migrate` to persist the new format.
 
 ## Tech Stack
 
