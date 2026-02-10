@@ -1,20 +1,35 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
-  "enabledPlugins": {
-    "claude-mem@thedotmack": true
-  },
-  "hooks": {
-    "PreCompact": [{
-      "matcher": "",
-      "hooks": [{ "command": "bd prime", "type": "command" }]
-    }],
-    "SessionStart": [{
-      "matcher": "",
-      "hooks": [{ "command": "bd prime", "type": "command" }]
-    }]
-  },
   "fileSuggestion": {
     "type": "command",
     "command": "jq -r '.query' | xargs -I{} sh -c 'fd -p \"{}\" | awk \"{ print length, \\$0 }\" | sort -n | cut -d\" \" -f2- | head -n 20'"
+  },
+  "hooks": {
+    "PreCompact": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bd prime"
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bd prime"
+          }
+        ]
+      }
+    ]
+  },
+  "enabledPlugins": {
+    "claude-mem@thedotmack": true,
+    "beads@beads-marketplace": true
   }
 }
