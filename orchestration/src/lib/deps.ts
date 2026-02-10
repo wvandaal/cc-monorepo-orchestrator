@@ -5,13 +5,14 @@ import { run } from "./git.js";
 export function enableCorepack(): void {
   console.log("Enabling corepack...");
   try {
-    run("corepack enable");
+    run(["corepack", "enable"]);
     console.log("Corepack enabled.");
   } catch (error) {
     console.warn(
-      "Warning: Failed to enable corepack. You may need to run 'corepack enable' manually.",
+      "Warning: Failed to enable corepack. Package managers like pnpm/yarn may not work.",
     );
-    console.warn((error as Error).message);
+    console.warn("  You may need to run 'corepack enable' manually.");
+    console.warn(`  Cause: ${(error as Error).message}`);
   }
 }
 
@@ -52,7 +53,7 @@ export function installDependencies(
 
   console.log(`Installing dependencies with ${packageManager}...`);
   try {
-    run(`${packageManager} install`, { cwd: worktreePath });
+    run([packageManager, "install"], { cwd: worktreePath });
     console.log("Dependencies installed successfully.");
   } catch (error) {
     console.error("Error: Failed to install dependencies.");

@@ -1,7 +1,7 @@
 import { createInterface } from "node:readline";
-import { cpSync, existsSync, mkdtempSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
-import { execSync } from "node:child_process";
-import { basename, join } from "node:path";
+import { existsSync, mkdtempSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { join } from "node:path";
 import { tmpdir } from "node:os";
 import {
   loadConfig,
@@ -12,6 +12,7 @@ import {
   type ResolvedRepoConfig,
 } from "./lib/config.js";
 import { run } from "./lib/git.js";
+import { resolveTemplate, prepareTemplateFiles, type TemplateSource } from "./lib/templates.js";
 
 // ── Subcommands ────────────────────────────────────────────────────────────
 
@@ -55,12 +56,13 @@ function add(args: string[]): void {
   // Optionally verify remote is accessible
   console.log(`Verifying remote '${remote}'...`);
   try {
-    run(`git ls-remote "${remote}"`, { silent: true });
+    run(["git", "ls-remote", remote], { silent: true });
     console.log("Remote is accessible.");
-  } catch {
+  } catch (error) {
     console.warn(
       "Warning: Could not reach remote. Adding to config anyway (will fail at bootstrap if unreachable).",
     );
+    console.warn((error as Error).message);
   }
 
   // Add to config
@@ -76,7 +78,7 @@ function add(args: string[]): void {
   console.log(`\nBootstrapping '${name}'...`);
   try {
     const scriptDir = new URL(".", import.meta.url).pathname;
-    execSync(`node "${join(scriptDir, "bootstrap.js")}" "${name}"`, {
+    execFileSync("node", [join(scriptDir, "bootstrap.js"), name], {
       stdio: "inherit",
     });
   } catch (error) {
@@ -143,32 +145,16 @@ function create(args: string[]): void {
     process.exit(1);
   }
 
-  // Verify template exists in config and has a bootstrapped main worktree
-  if (!config.repos[template]) {
-    console.error(`Error: template repo '${template}' not found in config.`);
-    process.exit(1);
-  }
-
-  const templateConfig = resolveRepoConfig(config, template);
-  const templateWorktree = join(templateConfig.worktreesRoot, "main");
-  if (!existsSync(templateWorktree)) {
-    console.error(
-      `Error: template repo '${template}' does not have a bootstrapped main worktree at ${templateWorktree}.`,
-    );
-    console.error("Run `pnpm bootstrap` first to set up the template repo.");
+  // Resolve template source
+  let templateSource: TemplateSource;
+  try {
+    templateSource = resolveTemplate(config, template);
+  } catch (error) {
+    console.error((error as Error).message);
     process.exit(1);
   }
 
   const branch = defaultBranch ?? config.defaults.defaultBranch;
-
-  // Excluded basenames when copying template
-  const excludedBasenames = new Set([".git", "node_modules", "dist"]);
-  const filter = (src: string): boolean => {
-    const base = basename(src);
-    if (excludedBasenames.has(base)) return false;
-    if (base.endsWith(".tsbuildinfo")) return false;
-    return true;
-  };
 
   // Copy template to temp dir, init git, push to remote
   const tmpDir = mkdtempSync(join(tmpdir(), `repo-create-${name}-`));
@@ -178,24 +164,24 @@ function create(args: string[]): void {
   try {
     // Step 1: Copy template files
     console.log(`Copying template '${template}' to temp directory...`);
-    cpSync(templateWorktree, tmpDir, { recursive: true, filter });
+    prepareTemplateFiles(templateSource, tmpDir);
 
     // Step 2: Git init + commit
     console.log("Initializing git repository...");
-    run(`git init -b "${branch}"`, { cwd: tmpDir });
-    run("git add .", { cwd: tmpDir });
-    run(`git commit -m "Initial commit from template: ${template}"`, { cwd: tmpDir });
+    run(["git", "init", "-b", branch], { cwd: tmpDir });
+    run(["git", "add", "."], { cwd: tmpDir });
+    run(["git", "commit", "-m", `Initial commit from template: ${template}`], { cwd: tmpDir });
 
     // Step 3: Remote handling
     if (remoteUrl) {
       console.log(`Adding remote: ${remoteUrl}`);
-      run(`git remote add origin "${remoteUrl}"`, { cwd: tmpDir });
+      run(["git", "remote", "add", "origin", remoteUrl], { cwd: tmpDir });
       console.log(`Pushing to origin/${branch}...`);
-      run(`git push -u origin "${branch}"`, { cwd: tmpDir });
+      run(["git", "push", "-u", "origin", branch], { cwd: tmpDir });
     } else {
       console.log(`Creating GitHub repository '${name}'...`);
       const visibility = isPublic ? "--public" : "--private";
-      const ghOutput = run(`gh repo create "${name}" ${visibility} --clone=false`, { silent: true });
+      const ghOutput = run(["gh", "repo", "create", name, visibility, "--clone=false"], { silent: true });
       // gh repo create prints the URL to stdout
       remoteUrl = ghOutput.trim();
       if (!remoteUrl) {
@@ -204,9 +190,9 @@ function create(args: string[]): void {
       ghCreated = true;
       console.log(`Created GitHub repo: ${remoteUrl}`);
 
-      run(`git remote add origin "${remoteUrl}"`, { cwd: tmpDir });
+      run(["git", "remote", "add", "origin", remoteUrl], { cwd: tmpDir });
       console.log(`Pushing to origin/${branch}...`);
-      run(`git push -u origin "${branch}"`, { cwd: tmpDir });
+      run(["git", "push", "-u", "origin", branch], { cwd: tmpDir });
     }
   } catch (error) {
     if (ghCreated && remoteUrl) {
@@ -234,7 +220,7 @@ function create(args: string[]): void {
   console.log(`\nBootstrapping '${name}'...`);
   try {
     const scriptDir = new URL(".", import.meta.url).pathname;
-    execSync(`node "${join(scriptDir, "bootstrap.js")}" "${name}"`, {
+    execFileSync("node", [join(scriptDir, "bootstrap.js"), name], {
       stdio: "inherit",
     });
   } catch (error) {
@@ -389,12 +375,11 @@ function rename(args: string[]): void {
     renameSync(oldDir, newDir);
 
     // Step 3: Rewrite worktree .git files and bare worktree pointers
-    const oldAbsDir = oldDir;
-    const newAbsDir = newDir;
-    rewritePointerFiles(oldAbsDir, newAbsDir);
+    rewritePointerFiles(oldDir, newDir);
 
     // Step 4: Verify worktrees
     const worktreesRoot = join(newDir, "worktrees");
+    let verificationFailures = 0;
     if (existsSync(worktreesRoot)) {
       console.log("Verifying worktrees...");
       const entries = readdirSync(worktreesRoot, { withFileTypes: true });
@@ -402,13 +387,19 @@ function rename(args: string[]): void {
         if (!entry.isDirectory()) continue;
         const wtPath = join(worktreesRoot, entry.name);
         try {
-          run(`git -C "${wtPath}" status`, { silent: true });
+          run(["git", "-C", wtPath, "status"], { silent: true });
           console.log(`  OK: ${entry.name}`);
         } catch (error) {
+          verificationFailures++;
           console.error(`  FAIL: ${entry.name} — verification failed`);
           console.error(`    ${(error as Error).message}`);
         }
       }
+    }
+
+    if (verificationFailures > 0) {
+      console.error(`\nRename completed but ${verificationFailures} worktree(s) failed verification. See errors above.`);
+      process.exit(1);
     }
   } catch (error) {
     console.error(`\nRename failed: ${(error as Error).message}`);
@@ -424,10 +415,11 @@ function rename(args: string[]): void {
 }
 
 function rewritePointerFiles(oldDir: string, newDir: string): void {
-  // Rewrite worktree .git files
+  // Phase 1: Read all pointer files and compute updates
+  const updates: { path: string; label: string; content: string }[] = [];
+
   const worktreesRoot = join(newDir, "worktrees");
   if (existsSync(worktreesRoot)) {
-    console.log("Rewriting worktree .git files...");
     const entries = readdirSync(worktreesRoot, { withFileTypes: true });
     for (const entry of entries) {
       if (!entry.isDirectory()) continue;
@@ -436,16 +428,13 @@ function rewritePointerFiles(oldDir: string, newDir: string): void {
       const content = readFileSync(gitFile, "utf-8");
       const updated = content.replaceAll(oldDir, newDir);
       if (updated !== content) {
-        writeFileSync(gitFile, updated, "utf-8");
-        console.log(`  Updated: ${entry.name}/.git`);
+        updates.push({ path: gitFile, label: `${entry.name}/.git`, content: updated });
       }
     }
   }
 
-  // Rewrite .bare/worktrees/*/gitdir files
   const bareWtDir = join(newDir, ".bare", "worktrees");
   if (existsSync(bareWtDir)) {
-    console.log("Rewriting bare repo worktree pointers...");
     const entries = readdirSync(bareWtDir, { withFileTypes: true });
     for (const entry of entries) {
       if (!entry.isDirectory()) continue;
@@ -454,9 +443,17 @@ function rewritePointerFiles(oldDir: string, newDir: string): void {
       const content = readFileSync(gitdirFile, "utf-8");
       const updated = content.replaceAll(oldDir, newDir);
       if (updated !== content) {
-        writeFileSync(gitdirFile, updated, "utf-8");
-        console.log(`  Updated: .bare/worktrees/${entry.name}/gitdir`);
+        updates.push({ path: gitdirFile, label: `.bare/worktrees/${entry.name}/gitdir`, content: updated });
       }
+    }
+  }
+
+  // Phase 2: Write all updates
+  if (updates.length > 0) {
+    console.log("Rewriting pointer files...");
+    for (const update of updates) {
+      writeFileSync(update.path, update.content, "utf-8");
+      console.log(`  Updated: ${update.label}`);
     }
   }
 }
@@ -472,7 +469,8 @@ function listWorktrees(repo: ResolvedRepoConfig): string {
     const entries = readdirSync(repo.worktreesRoot, { withFileTypes: true });
     const dirs = entries.filter((e) => e.isDirectory()).map((e) => e.name);
     return dirs.length > 0 ? dirs.join(", ") : "(none)";
-  } catch {
+  } catch (error) {
+    console.warn(`Warning: could not read worktrees for ${repo.name}: ${(error as Error).message}`);
     return "(error)";
   }
 }

@@ -1,10 +1,11 @@
 import { existsSync, mkdirSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import {
   loadConfig,
   resolveAllRepos,
+  resolveAllTemplates,
   resolveRepoConfig,
-  META_REPO_ROOT,
+  resolveTemplateConfig,
   type ResolvedRepoConfig,
 } from "./lib/config.js";
 import {
@@ -23,9 +24,8 @@ function bootstrapRepo(
   console.log(`  Remote: ${repo.remote}`);
   console.log(`  Branch: ${repo.defaultBranch}`);
 
-  // Ensure repos/<name>/ exists
-  const repoDir = join(META_REPO_ROOT, "repos", repo.name);
-  mkdirSync(repoDir, { recursive: true });
+  // Ensure parent directory exists (works for both repos/ and templates/)
+  mkdirSync(dirname(repo.barePath), { recursive: true });
 
   // Clone bare repo if .bare/ doesn't exist
   if (!existsSync(repo.barePath)) {
@@ -40,7 +40,7 @@ function bootstrapRepo(
   if (existsSync(mainWorktreePath)) {
     // Verify it's a valid worktree pointing to our bare repo
     try {
-      run(`git -C "${mainWorktreePath}" rev-parse --is-inside-work-tree`, {
+      run(["git", "-C", mainWorktreePath, "rev-parse", "--is-inside-work-tree"], {
         silent: true,
       });
 
@@ -55,10 +55,11 @@ function bootstrapRepo(
       }
 
       console.log("  Main worktree already exists and is valid.");
-    } catch {
+    } catch (error) {
       console.error(
         `  Error: ${mainWorktreePath} exists but is not a valid git worktree.`,
       );
+      console.error(`  Cause: ${(error as Error).message}`);
       console.error(
         "  Please remove or rename this directory and run bootstrap again.",
       );
@@ -85,25 +86,34 @@ function main(): void {
   // Enable corepack once
   enableCorepack();
 
-  // Determine which repos to bootstrap
-  let repos: ResolvedRepoConfig[];
+  // Determine what to bootstrap
+  let targets: ResolvedRepoConfig[];
   if (repoName) {
-    repos = [resolveRepoConfig(config, repoName)];
+    // Try repos first, then templates
+    const repo = config.repos[repoName] ? resolveRepoConfig(config, repoName) : undefined;
+    const tpl = !repo ? resolveTemplateConfig(config, repoName) : undefined;
+    if (!repo && !tpl) {
+      console.error(`Error: '${repoName}' not found in repos or templates in project.config.json`);
+      process.exit(1);
+    }
+    targets = [(repo ?? tpl)!];
   } else {
-    repos = resolveAllRepos(config);
+    targets = [...resolveAllRepos(config), ...resolveAllTemplates(config)];
   }
 
-  for (const repo of repos) {
-    bootstrapRepo(repo, forceInstall);
+  for (const target of targets) {
+    bootstrapRepo(target, forceInstall);
   }
 
   console.log("\n=== Bootstrap complete! ===");
 
+  // Only show worktree locations for repos, not templates
+  const repos = targets.filter((t) => config.repos[t.name]);
   if (repos.length === 1) {
     console.log(
       `\nYou can now work in: ${join(repos[0].worktreesRoot, "main")}`,
     );
-  } else {
+  } else if (repos.length > 1) {
     console.log("\nWorktree locations:");
     for (const repo of repos) {
       console.log(`  ${repo.name}: ${join(repo.worktreesRoot, "main")}`);

@@ -4,7 +4,8 @@
     "packageManager": "pnpm",
     "branchSanitizer": "replace-slash"
   },
-  "repos": {
+  "repos": {},
+  "templates": {
     "cc-monorepo": {
       "remote": "git@github.com:wvandaal/cc-monorepo.git"
     }
