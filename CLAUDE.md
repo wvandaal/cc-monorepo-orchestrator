@@ -61,7 +61,7 @@ pnpm wt <repo> <branch>           # Create worktree for branch
 
 ## Issue Tracking (Beads)
 
-This project uses **bd** (beads) for issue tracking. Run `bd onboard` to get started.
+This project uses **bd** (beads) for issue tracking.
 
 ```bash
 bd ready              # Find available work
