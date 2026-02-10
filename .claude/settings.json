@@ -15,6 +15,6 @@
   },
   "fileSuggestion": {
     "type": "command",
-    "command": "jq -r '.query' | xargs -I{} sh -c 'rg --files | rg \"{}\" | head -n 20'"
+    "command": "jq -r '.query' | xargs -I{} sh -c 'fd -p \"{}\" | awk \"{ print length, \\$0 }\" | sort -n | cut -d\" \" -f2- | head -n 20'"
   }
 }
